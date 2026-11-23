@@ -681,7 +681,7 @@ def read_or_generate_matrix(label, size=3):
             print("잘못된 선택입니다. 1, 2, 3 중에서 선택하세요.")
 
 
-def main():
+def run_manual_mode():
     print("=== Mini NPU Simulator ===")
 
     print("\n[1] 필터 입력")
@@ -710,6 +710,56 @@ def main():
         print("판정 : 판정 불가 (UNDECIDED)")
     else:
         print(f"판정 : {result}")
+
+
+
+def main():
+    while True:
+        print("\n" + "=" * 50)
+        print("Mini NPU Simulator")
+        print("=" * 50)
+
+        print("1. 3x3 패턴 입력 및 MAC 계산")
+        print("2. JSON 데이터 분석 및 검증")
+        print("3. MAC 성능 분석")
+        print("0. 프로그램 종료")
+
+        print("-" * 50)
+
+        try:
+            choice = input("메뉴 선택 (0~3) : ").strip()
+
+            if choice == "1":
+                run_manual_mode()
+
+            elif choice == "2":
+                print(
+                    "\nJSON 분석 기능은 "
+                    "다음 단계에서 연결합니다."
+                )
+
+            elif choice == "3":
+                print(
+                    "\n성능 분석 기능은 "
+                    "다음 단계에서 연결합니다."
+                )
+
+            elif choice == "0":
+                print("\n프로그램을 종료합니다.")
+                return
+
+            else:
+                print(
+                    "\n잘못된 선택입니다. "
+                    "0, 1, 2, 3 중에서 선택하세요."
+                )
+
+        except (KeyboardInterrupt, EOFError):
+            print(
+                "\n입력이 중단되어 프로그램을 종료합니다."
+            )
+            return
+
 
 
 if __name__ == "__main__":
