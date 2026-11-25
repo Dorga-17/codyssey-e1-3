@@ -1,4 +1,5 @@
 import json
+import math
 import time
 from pathlib import Path
 
@@ -14,6 +15,15 @@ def calculate_mac(pattern, filter_matrix):
     return total
 
 
+def validate_repetitions(repetitions):
+    if (
+        isinstance(repetitions, bool)
+        or not isinstance(repetitions, int)
+        or repetitions < 10
+    ):
+        raise ValueError("반복 횟수는 10 이상의 정수여야 합니다.")
+
+
 def measure_mac_time(pattern, filter_matrix):
     start_time = time.perf_counter()
 
@@ -27,12 +37,7 @@ def measure_mac_time(pattern, filter_matrix):
 
 
 def measure_mac_repeated(pattern, filter_matrix, repetitions=10):
-    if (
-        isinstance(repetitions, bool)
-        or not isinstance(repetitions, int)
-        or repetitions < 10
-    ):
-        raise ValueError("반복 횟수는 10 이상의 정수여야 합니다.")
+    validate_repetitions(repetitions)
 
     measured_times = []
     reference_score = None
@@ -63,12 +68,7 @@ def measure_mac_repeated(pattern, filter_matrix, repetitions=10):
 
 
 def collect_performance_results(repetitions=10):
-    if (
-        isinstance(repetitions, bool)
-        or not isinstance(repetitions, int)
-        or repetitions < 10
-    ):
-        raise ValueError("반복 횟수는 10 이상의 정수여야 합니다.")
+    validate_repetitions(repetitions)
 
     results = []
 
@@ -99,7 +99,7 @@ def collect_performance_results(repetitions=10):
                 "mac_operations": size * size,
                 "pattern_type": pattern_type,
                 "cross_score": cross_result["score"],
-                "x_score":x_result["score"],
+                "x_score": x_result["score"],
                 "cross_average_ms": cross_result["average_ms"],
                 "x_average_ms": x_result["average_ms"],
                 "prediction": prediction,
@@ -130,6 +130,13 @@ def read_matrix(label, size=3):
                 row = [float(value) for value in values]
             except ValueError:
                 print("입력 형식 오류 : 숫자만 입력하세요.")
+                continue
+
+            if not all(math.isfinite(value) for value in row):
+                print(
+                    "입력 형식 오류 : "
+                    "NaN과 무한대는 입력할 수 없습니다."
+                )
                 continue
 
             matrix.append(row)
@@ -249,6 +256,12 @@ def validate_matrix(matrix, size, label):
                     "숫자가 아닌 값이 있습니다."
                 )
 
+            if not math.isfinite(value):
+                raise ValueError(
+                    f"{label} : {row_number}행 {col_number}열에 "
+                    "유한하지 않은 숫자가 있습니다."
+                )
+
 
 def flatten_matrix(matrix):
     if not isinstance(matrix, list) or not matrix:
@@ -260,13 +273,7 @@ def flatten_matrix(matrix):
 
     validate_matrix(matrix, size, "평탄화할 행렬")
 
-    flatten = []
-
-    for row in matrix:
-        for value in row:
-            flatten.append(value)
-
-    return flatten
+    return [value for row in matrix for value in row]
 
 
 def calculate_mac_flat(pattern_flat, filter_flat):
@@ -297,14 +304,7 @@ def calculate_mac_flat(pattern_flat, filter_flat):
 
 
 def compare_mac_performance(repetitions=1000):
-    if (
-        isinstance(repetitions, bool)
-        or not isinstance(repetitions, int)
-        or repetitions < 10
-    ):
-        raise ValueError(
-            "반복 횟수는 10 이상의 정수여야 합니다."
-        )
+    validate_repetitions(repetitions)
 
     def average_mac_ms(mac_function, input_data, filter_data):
         mac_function(input_data, filter_data)
@@ -352,23 +352,19 @@ def compare_mac_performance(repetitions=1000):
                      "2차원과 1차원 MAC 점수가 다릅니다."
                     )
 
-                if len(results) % 2 == 0:
-                    ms_2d = average_mac_ms(
-                        calculate_mac, pattern_2d, filter_2d
-                    )
+                measurements = (
+                    ("2d", calculate_mac, pattern_2d, filter_2d),
+                    ("1d", calculate_mac_flat, pattern_1d, filter_1d),
+                )
+                if len(results) % 2:
+                    measurements = reversed(measurements)
 
-                    ms_1d = average_mac_ms(
-                        calculate_mac_flat, pattern_1d, filter_1d
-                    )
-
-                else:
-                    ms_1d = average_mac_ms(
-                        calculate_mac_flat, pattern_1d, filter_1d
-                    )
-
-                    ms_2d = average_mac_ms(
-                        calculate_mac, pattern_2d, filter_2d
-                    )
+                timings = {
+                    name: average_mac_ms(function, pattern, filter_matrix)
+                    for name, function, pattern, filter_matrix in measurements
+                }
+                ms_2d = timings["2d"]
+                ms_1d = timings["1d"]
 
                 results.append({
                     "size": size,
@@ -392,7 +388,7 @@ def validate_json_case(data, pattern_key):
     for required_key in ("filters", "patterns"):
         if required_key not in data:
             raise ValueError(
-                f"JSON 필 수 키가 없습니다. : {required_key}"
+                f"JSON 필수 키가 없습니다. : {required_key}"
             )
 
         if not isinstance(data[required_key], dict):
@@ -544,39 +540,25 @@ def analyze_all_json_cases(data):
 
 
 def print_json_case_results(results):
+    fields = (
+        ("CROSS SCORE", "cross_score"),
+        ("X SCORE", "x_score"),
+        ("EXPECTED", "expected"),
+        ("ACTUAL", "actual"),
+    )
+
     for result in results:
         print("-" * 50)
-
         print(f"CASE : {result['pattern_key']}")
 
-        if result["size"] is None:
-            print("SIZE : N/A")
-        else:
-            size = result["size"]
-            print(f"SIZE : {size}x{size}")
+        size = result["size"]
+        print(f"SIZE : {size}x{size}" if size is not None else "SIZE : N/A")
 
-        if result["cross_score"] is None:
-            print("CROSS SCORE : N/A")
-        else:
-            print(f"CROSS SCORE : {result['cross_score']}")
-
-        if result["x_score"] is None:
-            print("X SCORE : N/A")
-        else:
-            print(f"X SCORE : {result['x_score']}")
-
-        if result["expected"] is None:
-            print("EXPECTED : N/A")
-        else:
-            print(f"EXPECTED : {result['expected']}")
-
-        if result["actual"] is None:
-            print("ACTUAL : N/A")
-        else:
-            print(f"ACTUAL : {result['actual']}")
+        for title, key in fields:
+            value = result[key]
+            print(f"{title} : {value if value is not None else 'N/A'}")
 
         print(f"STATUS : {result['status']}")
-
         if result["reason"] is not None:
             print(f"REASON : {result['reason']}")
 
@@ -620,6 +602,51 @@ def print_json_summary(results):
         "pass": pass_count,
         "fail": fail_count,
     }
+
+
+
+def run_json_mode():
+    print("\n=== JSON 데이터 분석 및 검증 ===")
+
+    data = load_json_data()
+
+    if data is None:
+        print("JSON 파일을 불러오지 못해 분석을 중단합니다.")
+        return None
+
+    if not isinstance(data, dict):
+        print("JSON 구조 오류 : 최상위 데이터는 객체여야 합니다.")
+        return None
+
+    patterns = data.get("patterns")
+
+    if not isinstance(patterns, dict):
+        print("JSON 구조 오류 : patterns는 객체여야 합니다.")
+        return None
+
+    if not patterns:
+        print("분석할 JSON 패턴이 없습니다.")
+        return None
+
+    results = analyze_all_json_cases(data)
+
+    print_json_case_results(results)
+
+    summary = print_json_summary(results)
+
+    failed_cases = [
+        result["pattern_key"]
+        for result in results
+        if result["status"] == "FAIL"
+    ]
+
+    if failed_cases:
+        print("FAIL CASES : " + ", ".join(failed_cases))
+    else:
+        print("FAIL CASES : NONE")
+
+    return summary
+
 
 
 def generate_pattern(size, pattern_type):
@@ -681,6 +708,111 @@ def read_or_generate_matrix(label, size=3):
             print("잘못된 선택입니다. 1, 2, 3 중에서 선택하세요.")
 
 
+
+def run_performance_mode(
+    repetitions=10,
+    comparison_repetitions=1000
+):
+    print("\n=== MAC PERFORMANCE ANALYSIS ===")
+
+    # 1. 기존 2차원 MAC 성능 측정
+    performance_results = collect_performance_results(
+        repetitions=repetitions
+    )
+
+    print("\n[1] MAC MEASUREMENT")
+    print(
+        "N | INPUT | N^2 | "
+        "CROSS AVG(ms) | X AVG(ms) | PREDICTION"
+    )
+    print("-" * 75)
+
+    for item in performance_results:
+        print(
+            f"{item['size']:>2} | "
+            f"{item['pattern_type']:<5} | "
+            f"{item['mac_operations']:>3} | "
+            f"{item['cross_average_ms']:.6f} | "
+            f"{item['x_average_ms']:.6f} | "
+            f"{item['prediction']}"
+        )
+
+    # 2. 2차원과 1차원 MAC 성능 비교
+    comparison_results = compare_mac_performance(
+        repetitions=comparison_repetitions
+    )
+
+    print("\n[2] 2D VS 1D MAC")
+    print(
+        "N | N^2 | 2D AVG(ms) | "
+        "1D AVG(ms) | FASTER"
+    )
+    print("-" * 60)
+
+    size_summary = []
+
+    for size in (3, 5, 13, 25):
+        cases = [
+            item
+            for item in comparison_results
+            if item["size"] == size
+        ]
+
+        average_2d_ms = sum(
+            item["average_2d_ms"]
+            for item in cases
+        ) / len(cases)
+
+        average_1d_ms = sum(
+            item["average_1d_ms"]
+            for item in cases
+        ) / len(cases)
+
+        if average_1d_ms < average_2d_ms:
+            faster = "1D"
+        elif average_2d_ms < average_1d_ms:
+            faster = "2D"
+        else:
+            faster = "SAME"
+
+        mac_operations = size * size
+
+        print(
+            f"{size:>2} | "
+            f"{mac_operations:>3} | "
+            f"{average_2d_ms:.6f} | "
+            f"{average_1d_ms:.6f} | "
+            f"{faster}"
+        )
+
+        size_summary.append({
+            "size": size,
+            "mac_operations": mac_operations,
+            "average_2d_ms": average_2d_ms,
+            "average_1d_ms": average_1d_ms,
+            "faster": faster,
+        })
+
+    print("\n[3] ANALYSIS NOTES")
+    print(f"2D MAC repetitions: {repetitions}")
+    print(
+        "2D/1D comparison repetitions: "
+        f"{comparison_repetitions}"
+    )
+    print("MAC operation count: N^2")
+    print("Time complexity: O(N^2)")
+    print(
+        "Pattern generation and flattening "
+        "are excluded from comparison timing."
+    )
+
+    return {
+        "performance_results": performance_results,
+        "comparison_results": comparison_results,
+        "size_summary": size_summary,
+    }
+
+
 def run_manual_mode():
     print("=== Mini NPU Simulator ===")
 
@@ -733,16 +865,10 @@ def main():
                 run_manual_mode()
 
             elif choice == "2":
-                print(
-                    "\nJSON 분석 기능은 "
-                    "다음 단계에서 연결합니다."
-                )
+                run_json_mode()
 
             elif choice == "3":
-                print(
-                    "\n성능 분석 기능은 "
-                    "다음 단계에서 연결합니다."
-                )
+                run_performance_mode()
 
             elif choice == "0":
                 print("\n프로그램을 종료합니다.")
