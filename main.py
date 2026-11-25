@@ -829,14 +829,17 @@ def run_manual_mode():
 
     pattern = read_or_generate_matrix("입력 패턴")
 
-    score_a = calculate_mac(pattern, filter_a)
-    score_b = calculate_mac(pattern, filter_b)
+    score_a, time_a_ms = measure_mac_time(pattern, filter_a)
+    score_b, time_b_ms = measure_mac_time(pattern, filter_b)
 
     result = classify_scores(score_a, score_b)
 
     print("\n[3] MAC 결과")
     print(f"A 점수 : {score_a}")
     print(f"B 점수 : {score_b}")
+    print(f"A 연산 시간(ms) : {time_a_ms:.6f}")
+    print(f"B 연산 시간(ms) : {time_b_ms:.6f}")
+    print(f"총 MAC 연산 시간(ms) : {time_a_ms + time_b_ms:.6f}")
 
     if result == "UNDECIDED":
         print("판정 : 판정 불가 (UNDECIDED)")
@@ -854,12 +857,12 @@ def main():
         print("1. 3x3 패턴 입력 및 MAC 계산")
         print("2. JSON 데이터 분석 및 검증")
         print("3. MAC 성능 분석")
-        print("0. 프로그램 종료")
+        print("4. 프로그램 종료")
 
         print("-" * 50)
 
         try:
-            choice = input("메뉴 선택 (0~3) : ").strip()
+            choice = input("메뉴 선택 (1-4) : ").strip()
 
             if choice == "1":
                 run_manual_mode()
@@ -870,14 +873,14 @@ def main():
             elif choice == "3":
                 run_performance_mode()
 
-            elif choice == "0":
+            elif choice == "4":
                 print("\n프로그램을 종료합니다.")
                 return
 
             else:
                 print(
                     "\n잘못된 선택입니다. "
-                    "0, 1, 2, 3 중에서 선택하세요."
+                    "1, 2, 3, 4 중에서 선택하세요."
                 )
 
         except (KeyboardInterrupt, EOFError):
